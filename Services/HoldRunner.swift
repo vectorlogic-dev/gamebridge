@@ -1,0 +1,180 @@
+import Foundation
+import AppKit
+import Combine
+import Carbon.HIToolbox
+
+struct FrontmostApp: Equatable {
+    let pid: pid_t
+    let name: String
+}
+
+/// Holds a number key down inside one specific app (captured by PID), like an
+/// autobuff for MMOs. The user clicks into the game, presses the start
+/// hotkey — `HoldRunner` records the frontmost app's PID, then sends
+/// `keyDown` + auto-repeats to that PID until the stop hotkey is pressed.
+/// Because events are posted with `CGEvent.postToPid`, they go to the captured
+/// app regardless of focus — the user can switch to other apps freely without
+/// the macro spamming them.
+@MainActor
+final class HoldRunner: ObservableObject {
+    typealias FrontmostAppProvider = @MainActor () -> FrontmostApp?
+    typealias KeyDownHandler = (NumberKey, pid_t, Bool) -> Void
+    typealias KeyUpHandler = (NumberKey, pid_t) -> Void
+    typealias SleepHandler = (UInt64) async -> Void
+
+    @Published var targetKey: NumberKey = .n1
+    @Published private(set) var state: State = .idle
+    @Published private(set) var registrationError: String?
+
+    /// macOS virtual key code for the start hotkey (default ⌃-).
+    var startKeyCode: UInt32 = UInt32(kVK_ANSI_Minus)
+    /// Carbon modifier flags for the start hotkey (default `controlKey`).
+    var startModifiers: UInt32 = UInt32(controlKey)
+    /// macOS virtual key code for the stop hotkey (default ⌃=).
+    var stopKeyCode: UInt32 = UInt32(kVK_ANSI_Equal)
+    /// Carbon modifier flags for the stop hotkey (default `controlKey`).
+    var stopModifiers: UInt32 = UInt32(controlKey)
+
+    enum State: Equatable {
+        case idle
+        case holding(targetApp: String, since: Date)
+    }
+
+    private var targetPID: pid_t?
+    private var armedKey: NumberKey?
+    private var holdTask: Task<Void, Never>?
+    private var startHotkeyID: UInt32?
+    private var stopHotkeyID: UInt32?
+    private let frontmostAppProvider: FrontmostAppProvider
+    private let keyDownHandler: KeyDownHandler
+    private let keyUpHandler: KeyUpHandler
+    private let sleepHandler: SleepHandler
+
+    /// Auto-repeat interval, matching macOS's default key-repeat rate.
+    private let repeatInterval: UInt64 = 33_000_000  // 33 ms = ~30 Hz
+
+    init(
+        frontmostAppProvider: @escaping FrontmostAppProvider = {
+            guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+            return FrontmostApp(
+                pid: app.processIdentifier,
+                name: app.localizedName ?? "Unknown app"
+            )
+        },
+        keyDownHandler: @escaping KeyDownHandler = { key, pid, autorepeat in
+            KeyPresser.down(key, toPID: pid, autorepeat: autorepeat)
+        },
+        keyUpHandler: @escaping KeyUpHandler = { key, pid in
+            KeyPresser.up(key, toPID: pid)
+        },
+        sleepHandler: @escaping SleepHandler = { interval in
+            try? await Task.sleep(nanoseconds: interval)
+        }
+    ) {
+        self.frontmostAppProvider = frontmostAppProvider
+        self.keyDownHandler = keyDownHandler
+        self.keyUpHandler = keyUpHandler
+        self.sleepHandler = sleepHandler
+    }
+
+    deinit {
+        // Carbon resources are process-wide; unregister synchronously.
+        if let id = startHotkeyID { HotkeyMonitor.shared.unregister(id) }
+        if let id = stopHotkeyID { HotkeyMonitor.shared.unregister(id) }
+    }
+
+    func registerHotkeys() {
+        registrationError = nil
+        unregisterHotkeys()
+
+        startHotkeyID = HotkeyMonitor.shared.register(keyCode: startKeyCode, modifiers: startModifiers) { [weak self] in
+            Task { @MainActor in self?.armOnCurrentApp() }
+        }
+        stopHotkeyID = HotkeyMonitor.shared.register(keyCode: stopKeyCode, modifiers: stopModifiers) { [weak self] in
+            Task { @MainActor in self?.disarm() }
+        }
+
+        var failed: [String] = []
+        if startHotkeyID == nil { failed.append("start (\(label(for: startKeyCode, modifiers: startModifiers)))") }
+        if stopHotkeyID  == nil { failed.append("stop (\(label(for: stopKeyCode, modifiers: stopModifiers)))") }
+        if !failed.isEmpty {
+            let message = "Hotkey already claimed by another app: " + failed.joined(separator: ", ")
+            registrationError = message
+            ErrorLogger.shared.log(message, source: "hotkey")
+        }
+    }
+
+    func unregisterHotkeys() {
+        if let id = startHotkeyID { HotkeyMonitor.shared.unregister(id); startHotkeyID = nil }
+        if let id = stopHotkeyID  { HotkeyMonitor.shared.unregister(id); stopHotkeyID  = nil }
+    }
+
+    /// Capture the currently-frontmost app's PID and start holding the target
+    /// key on it. No-op if already holding.
+    func armOnCurrentApp() {
+        guard case .idle = state else { return }
+        guard let frontmost = frontmostAppProvider() else { return }
+        targetPID = frontmost.pid
+        armedKey = targetKey
+        state = .holding(targetApp: frontmost.name, since: Date())
+        startHoldLoop(pid: frontmost.pid)
+    }
+
+    /// Stop the hold loop and release the captured key immediately. No-op if idle.
+    func disarm() {
+        holdTask?.cancel()
+        holdTask = nil
+        if let pid = targetPID, let armedKey {
+            keyUpHandler(armedKey, pid)
+        }
+        targetPID = nil
+        armedKey = nil
+        state = .idle
+    }
+
+    private func startHoldLoop(pid: pid_t) {
+        guard let key = armedKey else { return }
+        let interval = repeatInterval
+        holdTask?.cancel()
+        keyDownHandler(key, pid, false)
+        holdTask = Task {
+            // After the initial press, send tight autorepeat presses until cancelled.
+            while !Task.isCancelled {
+                await sleepHandler(interval)
+                guard !Task.isCancelled else { break }
+                keyDownHandler(key, pid, true)
+            }
+        }
+    }
+
+    /// Human label for a macOS virtual-keycode (plus optional modifier glyphs).
+    /// Covers the F-keys we historically defaulted to, plus the punctuation
+    /// keys (`-` and `=`) used by the current default hotkeys.
+    func label(for keyCode: UInt32, modifiers: UInt32 = 0) -> String {
+        var prefix = ""
+        if modifiers & UInt32(controlKey) != 0 { prefix += "⌃" }
+        if modifiers & UInt32(optionKey)  != 0 { prefix += "⌥" }
+        if modifiers & UInt32(shiftKey)   != 0 { prefix += "⇧" }
+        if modifiers & UInt32(cmdKey)     != 0 { prefix += "⌘" }
+
+        let key: String
+        switch Int(keyCode) {
+        case kVK_F1:         key = "F1"
+        case kVK_F2:         key = "F2"
+        case kVK_F3:         key = "F3"
+        case kVK_F4:         key = "F4"
+        case kVK_F5:         key = "F5"
+        case kVK_F6:         key = "F6"
+        case kVK_F7:         key = "F7"
+        case kVK_F8:         key = "F8"
+        case kVK_F9:         key = "F9"
+        case kVK_F10:        key = "F10"
+        case kVK_F11:        key = "F11"
+        case kVK_F12:        key = "F12"
+        case kVK_ANSI_Minus: key = "-"
+        case kVK_ANSI_Equal: key = "="
+        default:             key = "keycode \(keyCode)"
+        }
+        return prefix + key
+    }
+}

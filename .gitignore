@@ -1,0 +1,18 @@
+# Generated Xcode project (project.yml is the source of truth)
+*.xcodeproj/
+
+# Xcode build artifacts
+build/
+DerivedData/
+*.profraw
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Python
+__pycache__/
+*.pyc

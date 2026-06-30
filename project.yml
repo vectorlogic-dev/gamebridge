@@ -1,0 +1,37 @@
+name: GameBridge
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  bundleIdPrefix: com.argie
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  GameBridge:
+    type: application
+    platform: macOS
+    sources:
+      - path: GameBridgeApp.swift
+      - path: Models
+      - path: Services
+      - path: Views
+      - path: scripts/rfbanana_handoff_patcher.py
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.argie.gamebridge
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_ENTITLEMENTS: ""
+  GameBridgeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: GameBridgeTests
+    dependencies:
+      - target: GameBridge
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
