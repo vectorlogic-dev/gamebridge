@@ -12,7 +12,7 @@ final class D3DMetalInstaller: ObservableObject {
         case failed(String)
     }
 
-    private static let dllNames = [
+    nonisolated private static let dllNames = [
         "d3d9.dll", "d3d10core.dll", "d3d11.dll",
         "d3d12.dll", "d3d12core.dll", "dxgi.dll",
     ]
@@ -26,7 +26,7 @@ final class D3DMetalInstaller: ObservableObject {
             return
         }
 
-        guard let redistDir = findRedistDir(winePath: winePath) else {
+        guard let redistDir = Self.redistDirectory(for: winePath) else {
             status = .failed("D3DMetal DLLs not found — is GPTK installed?")
             return
         }
@@ -57,35 +57,29 @@ final class D3DMetalInstaller: ObservableObject {
         }
     }
 
-    private func findRedistDir(winePath: String) -> URL? {
-        let fm = FileManager.default
-        let wineBin = URL(fileURLWithPath: winePath)
-        let wineRoot = wineBin.deletingLastPathComponent().deletingLastPathComponent()
+    nonisolated static func candidateRedistDirectories(for winePath: String) -> [URL] {
+        let resolvedWineBin = URL(fileURLWithPath: winePath)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        let wineRoot = resolvedWineBin.deletingLastPathComponent().deletingLastPathComponent()
 
-        let candidates = [
+        return [
             wineRoot.appendingPathComponent("lib/wine/x86_64-windows"),
             wineRoot.appendingPathComponent("lib64/wine/x86_64-windows"),
-            wineRoot.appendingPathComponent("share/wine/gecko/../../../lib/wine/x86_64-windows"),
+            wineRoot.appendingPathComponent("share/wine/gecko/../../../lib/wine/x86_64-windows").standardizedFileURL,
         ]
+    }
 
-        for dir in candidates {
-            let probe = dir.appendingPathComponent("d3d11.dll")
-            if fm.fileExists(atPath: probe.path) {
-                return dir
-            }
+    nonisolated static func hasRequiredSupportFiles(
+        in directory: URL,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> Bool {
+        dllNames.allSatisfy { fileExists(directory.appendingPathComponent($0).path) }
+    }
+
+    nonisolated static func redistDirectory(for winePath: String, fileManager: FileManager = .default) -> URL? {
+        candidateRedistDirectories(for: winePath).first {
+            hasRequiredSupportFiles(in: $0) { fileManager.fileExists(atPath: $0) }
         }
-
-        let hardcoded = [
-            "/usr/local/opt/game-porting-toolkit/lib/wine/x86_64-windows",
-            "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-windows",
-        ]
-        for path in hardcoded {
-            let dir = URL(fileURLWithPath: path)
-            if fm.fileExists(atPath: dir.appendingPathComponent("d3d11.dll").path) {
-                return dir
-            }
-        }
-
-        return nil
     }
 }

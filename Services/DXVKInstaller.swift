@@ -13,16 +13,14 @@ final class DXVKInstaller: ObservableObject {
         case failed(String)
     }
 
-    private static let dxvkVersion = "2.5.3"
+    nonisolated private static let dxvkVersion = "2.5.3"
     private static let downloadURL = URL(string: "https://github.com/doitsujin/dxvk/releases/download/v\(dxvkVersion)/dxvk-\(dxvkVersion).tar.gz")!
 
-    private static let dllNames = ["d3d9.dll", "d3d10core.dll", "d3d11.dll", "dxgi.dll"]
+    nonisolated private static let dllNames = ["d3d9.dll", "d3d10core.dll", "d3d11.dll", "dxgi.dll"]
 
     private var cacheDir: URL {
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("GameBridge/Cache/dxvk-\(Self.dxvkVersion)", isDirectory: true)
-        return appSupport
+        Self.cachedInstallDirectory()
+            .deletingLastPathComponent()
     }
 
     func install(into bottle: Bottle) async {
@@ -67,11 +65,39 @@ final class DXVKInstaller: ObservableObject {
         }
     }
 
+    nonisolated static var currentVersion: String {
+        dxvkVersion
+    }
+
+    nonisolated static func cachedInstallDirectory(fileManager: FileManager = .default) -> URL {
+        fileManager
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GameBridge/Cache/dxvk-\(currentVersion)", isDirectory: true)
+            .appendingPathComponent("dxvk-\(currentVersion)", isDirectory: true)
+    }
+
+    nonisolated static func isUsableCachedExtractedDirectory(
+        in extractedDirectory: URL,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> Bool {
+        let architectures = ["x64", "x32"]
+        return architectures.allSatisfy { architecture in
+            dllNames.allSatisfy { dllName in
+                fileExists(
+                    extractedDirectory
+                        .appendingPathComponent(architecture)
+                        .appendingPathComponent(dllName)
+                        .path
+                )
+            }
+        }
+    }
+
     private func ensureCached() async throws -> URL {
         let fm = FileManager.default
         let extractedDir = cacheDir.appendingPathComponent("dxvk-\(Self.dxvkVersion)")
 
-        if fm.fileExists(atPath: extractedDir.appendingPathComponent("x64/d3d11.dll").path) {
+        if Self.isUsableCachedExtractedDirectory(in: extractedDir) {
             progress = "Using cached DXVK \(Self.dxvkVersion)"
             return extractedDir
         }
@@ -92,7 +118,7 @@ final class DXVKInstaller: ObservableObject {
         try await extract(tarball: tarball, to: cacheDir)
         try? fm.removeItem(at: tarball)
 
-        guard fm.fileExists(atPath: extractedDir.appendingPathComponent("x64/d3d11.dll").path) else {
+        guard Self.isUsableCachedExtractedDirectory(in: extractedDir) else {
             throw InstallerError.extractionFailed
         }
 
