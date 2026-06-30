@@ -7,6 +7,8 @@ it's the management/launcher layer on top, the same role Whisky and Mythic play.
 
 ## Features
 
+- Auto-detect supported Wine-family runtimes and classify their capabilities
+  (GPTK, CrossOver, Whisky, Homebrew Wine).
 - Create and track Wine prefixes ("bottles") — each is a virtual C: drive.
 - Initialise a bottle (`wineboot`) and open `winecfg`.
 - Pick any Windows `.exe` and launch it inside a bottle.
@@ -18,6 +20,17 @@ it's the management/launcher layer on top, the same role Whisky and Mythic play.
 - Toggle graphics backend: **D3DMetal (GPTK)**, **DXVK (Vulkan)**, or **wined3d**.
 - Toggle MetalFX upscaling, an FPS overlay, and AVX advertising (some titles need it).
 - Stream the game's stdout/stderr as a live, selectable log; stop a running game.
+
+## Current status
+
+The runtime inventory and launch-readiness scanning foundation is now in place.
+GameBridge can identify supported runtime families, validate backend support
+more strictly, and detect common launch blockers such as missing runtime
+selection, uninitialised bottles, unsupported graphics backends, and incomplete
+DXVK/D3DMetal support assets.
+
+The next layer is surfacing those readiness results directly in the bottle UI
+and routing launch decisions through a dedicated launch coordinator.
 
 ## What it deliberately does NOT do
 
@@ -93,6 +106,9 @@ The generated `.xcodeproj` is gitignored — `project.yml` is the source of trut
   Lighter/older D3D11 games are the sweet spot.
 - **This is an MVP:** no per-game profiles, no bottle backup. Those are the
   obvious next steps if you want to grow it toward what Whisky/Mythic offer.
+  The current codebase now includes the runtime/readiness groundwork for that
+  broader compatibility layer, but the guided UI and profile system are still
+  in progress.
 
 ## Game guides
 
