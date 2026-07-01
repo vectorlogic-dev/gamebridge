@@ -20,24 +20,25 @@ struct HotkeyRecorderView: View {
     var body: some View {
         Button(action: toggleRecording) {
             Text(recording ? "Press a key…" : combo.label)
-                .font(.callout.monospaced())
-                .frame(minWidth: 60)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
+                .font(.body.monospaced().bold())
+                .foregroundStyle(recording ? Color.orange : Color.primary)
+                .frame(minWidth: 70)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
                 .background(
-                    (recording ? Color.orange : Color.gray).opacity(0.15),
+                    (recording ? Color.orange : Color.accentColor).opacity(0.18),
                     in: RoundedRectangle(cornerRadius: 6)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
                         .strokeBorder(
-                            recording ? Color.orange.opacity(0.7) : Color.gray.opacity(0.3),
-                            lineWidth: 1
+                            recording ? Color.orange : Color.accentColor.opacity(0.6),
+                            lineWidth: 1.5
                         )
                 )
         }
         .buttonStyle(.plain)
-        .help(recording ? "Press the new hotkey combo, or click to cancel." : "Click to rebind.")
+        .help(recording ? "Press the new hotkey combo, or Escape to cancel." : "Click to rebind.")
         .onDisappear { stopRecording() }
     }
 
