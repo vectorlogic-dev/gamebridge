@@ -23,14 +23,34 @@ it's the management/launcher layer on top, the same role Whisky and Mythic play.
 
 ## Current status
 
-The runtime inventory and launch-readiness scanning foundation is now in place.
-GameBridge can identify supported runtime families, validate backend support
-more strictly, and detect common launch blockers such as missing runtime
-selection, uninitialised bottles, unsupported graphics backends, and incomplete
-DXVK/D3DMetal support assets.
+The runtime inventory + launch-readiness foundation is in, and its results now
+surface in the bottle view as a colour-coded readiness banner: **Ready to
+launch** (green), **Launch with warnings** (orange), or **Launch blocked**
+(red). Unsupported-graphics-backend hits are warnings, not blocks — some
+Homebrew Wine + D3DMetal combos launch in practice, so we defer to the user
+rather than refuse.
 
-The next layer is surfacing those readiness results directly in the bottle UI
-and routing launch decisions through a dedicated launch coordinator.
+Alongside that:
+
+- **Persistent Wine picker.** The selected runtime survives relaunches
+  (backed by `UserDefaults`); the picker doesn't reset to whatever
+  `WineLocator.detect().first` returned.
+- **Custom prefix on bottle creation.** "Choose…" in the New Bottle sheet
+  lets you point at an existing `WINEPREFIX` without hand-editing
+  `bottles.json`.
+- **Per-bottle Hold-macro key.** The autobuff target key is remembered per
+  bottle.
+- **Single-instance guard.** Launching a second GameBridge activates the
+  running one and exits — prevents the Carbon-hotkey collision that used
+  to log `Hotkey already claimed by another app`.
+- **Accessibility permission prompt.** The Hold panel calls
+  `AXIsProcessTrustedWithOptions` so macOS raises its standard dialog on
+  first use, instead of silently dropping every synthetic key event.
+- **Stable Debug signing** via the self-signed `GameBridge Dev` identity,
+  so Accessibility and other TCC grants persist across rebuilds.
+
+The next layer is routing launch decisions through a dedicated launch
+coordinator and letting the user rebind the hold-macro start/stop combo.
 
 ## What it deliberately does NOT do
 
@@ -70,11 +90,35 @@ the detected binaries.
 
 ## Build
 
-Requires [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`):
+Requires [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+
+### One-time setup
+
+Provision the local self-signed identity Debug builds sign with:
+
+```bash
+./scripts/create-signing-identity.sh
+```
+
+This creates a `GameBridge Dev` code-signing cert in your login keychain
+(idempotent — safe to re-run). Debug builds reference it in `project.yml`.
+Ad-hoc signing (`-`) is *not* used because it changes `cdhash` on every
+rebuild and silently invalidates TCC grants like Accessibility.
+
+### Build + run
+
+```bash
+./scripts/build.sh          # builds into ./build/GameBridge.app
+./scripts/build.sh --run    # ... and launches it
+```
+
+Or the raw form if you prefer:
 
 ```bash
 xcodegen generate
-xcodebuild -scheme GameBridge -configuration Debug build
+xcodebuild -scheme GameBridge -configuration Debug \
+    -derivedDataPath build/dd \
+    CONFIGURATION_BUILD_DIR="$(pwd)/build" build
 ```
 
 The generated `.xcodeproj` is gitignored — `project.yml` is the source of truth.
@@ -82,6 +126,14 @@ The generated `.xcodeproj` is gitignored — `project.yml` is the source of trut
 - **App Sandbox is OFF** — required for launching Wine processes.
 - **Swift 6 language mode** — concurrency is handled cleanly.
 - Build target: macOS 14+.
+
+### macOS permissions
+
+- On first use of the Hold-macro / autobuff, macOS prompts for
+  **Accessibility** (System Settings → Privacy & Security → Accessibility).
+  Grant it, then quit and relaunch GameBridge so the process reads the
+  new grant. This is needed because the macro posts synthetic key events
+  via `CGEvent.postToPid`.
 
 ## Use
 
