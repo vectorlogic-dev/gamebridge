@@ -44,6 +44,8 @@ enum WineLocator {
             // Mythic / Apple-silicon homebrew
             ("Homebrew wine", "/opt/homebrew/bin/wine64"),
             ("Homebrew wine", "/opt/homebrew/bin/wine"),
+            // Homebrew (x86_64) — `brew install --cask wine-stable` on Intel
+            ("Homebrew wine", "/usr/local/bin/wine"),
         ]
     }
 
@@ -61,7 +63,10 @@ enum WineLocator {
         if pathEvidence.contains("com.isaacmarovitz.whisky") || pathEvidence.contains("/whisky/") {
             return .whisky
         }
-        if resolvedPath.contains("/cellar/wine") || resolvedPath.hasPrefix("/opt/homebrew/bin/") {
+        if resolvedPath.contains("/cellar/wine")
+            || resolvedPath.hasPrefix("/opt/homebrew/bin/")
+            || resolvedPath.hasPrefix("/usr/local/bin/wine")
+            || resolvedPath.contains("wine-stable") {
             return .homebrewWine
         }
 
