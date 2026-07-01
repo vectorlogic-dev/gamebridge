@@ -28,14 +28,11 @@ final class HoldRunner: ObservableObject {
     @Published private(set) var registrationError: String?
     @Published private(set) var permissionError: String?
 
-    /// macOS virtual key code for the start hotkey (default ⌃-).
-    var startKeyCode: UInt32 = UInt32(kVK_ANSI_Minus)
-    /// Carbon modifier flags for the start hotkey (default `controlKey`).
-    var startModifiers: UInt32 = UInt32(controlKey)
-    /// macOS virtual key code for the stop hotkey (default ⌃=).
-    var stopKeyCode: UInt32 = UInt32(kVK_ANSI_Equal)
-    /// Carbon modifier flags for the stop hotkey (default `controlKey`).
-    var stopModifiers: UInt32 = UInt32(controlKey)
+    /// Start hotkey. Default is ⌃-; per-bottle overrides land here before
+    /// `registerHotkeys()` runs.
+    var startHotkey: HotkeyCombo = .defaultStart
+    /// Stop hotkey. Default is ⌃=.
+    var stopHotkey: HotkeyCombo = .defaultStop
 
     enum State: Equatable {
         case idle
@@ -90,16 +87,16 @@ final class HoldRunner: ObservableObject {
         unregisterHotkeys()
         requestAccessibilityIfNeeded()
 
-        startHotkeyID = HotkeyMonitor.shared.register(keyCode: startKeyCode, modifiers: startModifiers) { [weak self] in
+        startHotkeyID = HotkeyMonitor.shared.register(keyCode: startHotkey.keyCode, modifiers: startHotkey.modifiers) { [weak self] in
             Task { @MainActor in self?.armOnCurrentApp() }
         }
-        stopHotkeyID = HotkeyMonitor.shared.register(keyCode: stopKeyCode, modifiers: stopModifiers) { [weak self] in
+        stopHotkeyID = HotkeyMonitor.shared.register(keyCode: stopHotkey.keyCode, modifiers: stopHotkey.modifiers) { [weak self] in
             Task { @MainActor in self?.disarm() }
         }
 
         var failed: [String] = []
-        if startHotkeyID == nil { failed.append("start (\(label(for: startKeyCode, modifiers: startModifiers)))") }
-        if stopHotkeyID  == nil { failed.append("stop (\(label(for: stopKeyCode, modifiers: stopModifiers)))") }
+        if startHotkeyID == nil { failed.append("start (\(startHotkey.label))") }
+        if stopHotkeyID  == nil { failed.append("stop (\(stopHotkey.label))") }
         if !failed.isEmpty {
             let message = "Hotkey already claimed by another app: " + failed.joined(separator: ", ")
             registrationError = message
@@ -163,34 +160,4 @@ final class HoldRunner: ObservableObject {
         }
     }
 
-    /// Human label for a macOS virtual-keycode (plus optional modifier glyphs).
-    /// Covers the F-keys we historically defaulted to, plus the punctuation
-    /// keys (`-` and `=`) used by the current default hotkeys.
-    func label(for keyCode: UInt32, modifiers: UInt32 = 0) -> String {
-        var prefix = ""
-        if modifiers & UInt32(controlKey) != 0 { prefix += "⌃" }
-        if modifiers & UInt32(optionKey)  != 0 { prefix += "⌥" }
-        if modifiers & UInt32(shiftKey)   != 0 { prefix += "⇧" }
-        if modifiers & UInt32(cmdKey)     != 0 { prefix += "⌘" }
-
-        let key: String
-        switch Int(keyCode) {
-        case kVK_F1:         key = "F1"
-        case kVK_F2:         key = "F2"
-        case kVK_F3:         key = "F3"
-        case kVK_F4:         key = "F4"
-        case kVK_F5:         key = "F5"
-        case kVK_F6:         key = "F6"
-        case kVK_F7:         key = "F7"
-        case kVK_F8:         key = "F8"
-        case kVK_F9:         key = "F9"
-        case kVK_F10:        key = "F10"
-        case kVK_F11:        key = "F11"
-        case kVK_F12:        key = "F12"
-        case kVK_ANSI_Minus: key = "-"
-        case kVK_ANSI_Equal: key = "="
-        default:             key = "keycode \(keyCode)"
-        }
-        return prefix + key
-    }
 }

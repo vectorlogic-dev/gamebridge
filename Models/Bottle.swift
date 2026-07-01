@@ -25,6 +25,14 @@ struct Bottle: Identifiable, Codable, Hashable {
     /// creates hasn't picked one yet.
     var holdTargetKey: NumberKey?
 
+    /// Custom Hold-macro start hotkey for this bottle. `nil` = use the
+    /// baked-in default (⌃-). Rebinding matters because Wine games commonly
+    /// grab Ctrl-based combos globally while running.
+    var holdStartHotkey: HotkeyCombo?
+
+    /// Custom Hold-macro stop hotkey. `nil` = use the default (⌃=).
+    var holdStopHotkey: HotkeyCombo?
+
     /// drive_c inside the prefix — where Windows programs live.
     var driveCURL: URL {
         URL(fileURLWithPath: prefixPath).appendingPathComponent("drive_c")

@@ -42,7 +42,11 @@ struct BottleDetailView: View {
                 shortcutsList
                 Divider()
             }
-            HoldMacroPanel(runner: holdRunner)
+            HoldMacroPanel(
+                runner: holdRunner,
+                onHotkeyChanged: persistAndReRegisterHotkeys,
+                onResetHotkeys: resetHotkeys
+            )
             Divider()
             logView
                 .frame(maxHeight: .infinity)
@@ -57,6 +61,8 @@ struct BottleDetailView: View {
             if let saved = bottle.holdTargetKey {
                 holdRunner.targetKey = saved
             }
+            holdRunner.startHotkey = bottle.holdStartHotkey ?? .defaultStart
+            holdRunner.stopHotkey = bottle.holdStopHotkey ?? .defaultStop
         }
         .onChange(of: store.selectedWinePath) { _, _ in refreshReadiness() }
         .onChange(of: backend) { _, _ in refreshReadiness() }
@@ -69,6 +75,25 @@ struct BottleDetailView: View {
         var updated = bottle
         updated.holdTargetKey = newKey
         store.update(updated)
+    }
+
+    private func persistAndReRegisterHotkeys() {
+        var updated = bottle
+        updated.holdStartHotkey = holdRunner.startHotkey
+        updated.holdStopHotkey = holdRunner.stopHotkey
+        store.update(updated)
+        // Cheapest way to pick up the new combo: full re-register cycle.
+        holdRunner.registerHotkeys()
+    }
+
+    private func resetHotkeys() {
+        holdRunner.startHotkey = .defaultStart
+        holdRunner.stopHotkey = .defaultStop
+        var updated = bottle
+        updated.holdStartHotkey = nil
+        updated.holdStopHotkey = nil
+        store.update(updated)
+        holdRunner.registerHotkeys()
     }
 
     private func refreshReadiness(for executableURL: URL? = nil) {
