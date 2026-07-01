@@ -12,7 +12,7 @@ Requires **macOS 14 Sonoma** or newer. Universal binary (Apple Silicon + Intel).
 
 ## Install
 
-1. Grab the latest DMG from the [Releases page](https://github.com/vectorlogic-dev/gamebridge/releases).
+1. Grab the latest DMG from the [latest release](https://github.com/vectorlogic-dev/gamebridge/releases/latest) (or browse [all releases](https://github.com/vectorlogic-dev/gamebridge/releases)).
 2. Open the DMG → drag **GameBridge** into your **Applications** folder.
 3. **First-launch gotcha (self-signed builds).** Because GameBridge isn't yet
    notarised by Apple, Gatekeeper will refuse a normal double-click and say
