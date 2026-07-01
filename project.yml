@@ -23,12 +23,14 @@ targets:
       - path: Models
       - path: Services
       - path: Views
+      - path: Assets.xcassets
       - path: scripts/rfbanana_handoff_patcher.py
         buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.argie.gamebridge
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Argie Suboc"
         # App Sandbox stays OFF — GameBridge shells out to Wine binaries the
