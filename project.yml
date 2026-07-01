@@ -3,9 +3,17 @@ options:
   deploymentTarget:
     macOS: "14.0"
   bundleIdPrefix: com.argie
+configs:
+  Debug: debug
+  Release: release
 settings:
   base:
     SWIFT_VERSION: "6.0"
+    # Version stamped into Info.plist and shown in About dialog / Finder Get Info.
+    # Bump MARKETING_VERSION for user-visible releases (semver). CURRENT_PROJECT_VERSION
+    # is the build number — bumped every release; scripts/release.sh handles it.
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
 targets:
   GameBridge:
     type: application
@@ -21,19 +29,44 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.argie.gamebridge
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Argie Suboc"
+        # App Sandbox stays OFF — GameBridge shells out to Wine binaries the
+        # sandbox would refuse to launch. Distribution is direct + notarised,
+        # not App Store.
         CODE_SIGN_ENTITLEMENTS: ""
-        # Self-signed local Dev identity ("GameBridge Dev") kept in the
-        # developer's login keychain. Ad-hoc ("-") signing changes the cdhash
-        # on every rebuild and drops TCC grants (Accessibility etc.); this
-        # stable identity keeps them across rebuilds. See
-        # ai/2026-07-01-hold-presser-issue.md for the incident that motivated
-        # this. Run scripts/create-signing-identity.sh once per machine to
-        # provision it in the login keychain.
-        CODE_SIGN_IDENTITY: "GameBridge Dev"
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGNING_ALLOWED: YES
-        CODE_SIGNING_REQUIRED: YES
-        DEVELOPMENT_TEAM: ""
+      configs:
+        Debug:
+          # Self-signed local Dev identity ("GameBridge Dev") kept in the
+          # developer's login keychain. Ad-hoc ("-") signing changes the cdhash
+          # on every rebuild and drops TCC grants (Accessibility etc.); this
+          # stable identity keeps them across rebuilds. See
+          # ai/2026-07-01-hold-presser-issue.md for the incident that motivated
+          # this. Run scripts/create-signing-identity.sh once per machine to
+          # provision it in the login keychain.
+          CODE_SIGN_IDENTITY: "GameBridge Dev"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGNING_ALLOWED: YES
+          CODE_SIGNING_REQUIRED: YES
+          DEVELOPMENT_TEAM: ""
+        Release:
+          # Release defaults to the same self-signed dev identity for now so
+          # `xcodebuild archive` succeeds without an Apple Developer Program
+          # membership. When one becomes available, override via env at build
+          # time — scripts/release.sh reads GAMEBRIDGE_RELEASE_IDENTITY and
+          # GAMEBRIDGE_DEVELOPMENT_TEAM to swap in "Developer ID Application:
+          # ..." + a real team id for notarised distribution.
+          CODE_SIGN_IDENTITY: "GameBridge Dev"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGNING_ALLOWED: YES
+          CODE_SIGNING_REQUIRED: YES
+          DEVELOPMENT_TEAM: ""
+          # Release builds strip debug symbols to shrink the binary and disable
+          # debug asserts. The DWARF is preserved as a separate .dSYM so we can
+          # still symbolicate crash reports later.
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
   GameBridgeTests:
     type: bundle.unit-test
     platform: macOS
