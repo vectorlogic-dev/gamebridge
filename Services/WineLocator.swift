@@ -8,6 +8,13 @@ enum WineLocator {
         isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
         canonicalPath: (String) -> String = {
             URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardized.path
+        },
+        // Probe the runtime's install tree for the D3DMetal redist DLLs
+        // instead of hardcoding a family-based guess. Lets a Homebrew wine
+        // with community D3DMetal DLLs report `supportsD3DMetal: true`, and
+        // lets a broken GPTK install correctly report `false`.
+        d3dMetalProbe: (String) -> Bool = { winePath in
+            D3DMetalInstaller.redistDirectory(for: winePath) != nil
         }
     ) -> [GameRuntimeInstall] {
         var seen = Set<String>()
@@ -22,7 +29,7 @@ enum WineLocator {
                     name: name,
                     winePath: path,
                     family: family,
-                    capabilities: capabilities(for: family)
+                    capabilities: capabilities(for: family, winePath: path, d3dMetalProbe: d3dMetalProbe)
                 )
             )
         }
@@ -73,20 +80,19 @@ enum WineLocator {
         return .unknown
     }
 
-    private static func capabilities(for family: RuntimeFamily) -> RuntimeCapabilities {
-        switch family {
-        case .gptk, .crossover, .whisky:
-            return RuntimeCapabilities(
-                supportsGenericWineLaunch: true,
-                supportsD3DMetal: true,
-                supportsDXVK: true
-            )
-        case .homebrewWine, .unknown:
-            return RuntimeCapabilities(
-                supportsGenericWineLaunch: true,
-                supportsD3DMetal: false,
-                supportsDXVK: true
-            )
-        }
+    private static func capabilities(
+        for family: RuntimeFamily,
+        winePath: String,
+        d3dMetalProbe: (String) -> Bool
+    ) -> RuntimeCapabilities {
+        // Family no longer decides D3DMetal — the probe does. DXVK is always
+        // reachable because it's a user-installed cache injected into the
+        // prefix, not something the wine binary itself has to ship. Generic
+        // launch works for any wine we've been able to detect at all.
+        return RuntimeCapabilities(
+            supportsGenericWineLaunch: true,
+            supportsD3DMetal: d3dMetalProbe(winePath),
+            supportsDXVK: true
+        )
     }
 }
