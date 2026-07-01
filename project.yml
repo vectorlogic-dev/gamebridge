@@ -6,8 +6,16 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGN_STYLE: Automatic
+    # Self-signed local Dev identity ("GameBridge Dev") kept in the developer's
+    # login keychain. Ad-hoc ("-") signing changes the cdhash on every rebuild
+    # and drops TCC grants (Accessibility etc.) — this stable identity keeps
+    # them across rebuilds. See ai/2026-07-01-hold-presser-issue.md for the
+    # incident that motivated this.
+    CODE_SIGN_IDENTITY: "GameBridge Dev"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_ALLOWED: YES
+    CODE_SIGNING_REQUIRED: YES
+    DEVELOPMENT_TEAM: ""
 targets:
   GameBridge:
     type: application
