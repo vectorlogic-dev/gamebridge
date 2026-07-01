@@ -16,6 +16,13 @@ struct BottleDetailView: View {
     @State private var shortcutName = ""
     @State private var pendingExeURL: URL?
     @State private var showingSaveSheet = false
+    @State private var readinessReport = LaunchReadinessReport(status: .info, selectedRuntime: nil, findings: [])
+
+    private let scanner = EnvironmentScanner()
+
+    private var launchState: BottleLaunchState {
+        BottleLaunchState(report: readinessReport)
+    }
 
     init(bottle: Bottle) {
         self.bottle = bottle
@@ -26,6 +33,9 @@ struct BottleDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
+            ReadinessSummaryView(state: launchState)
+                .padding(.horizontal)
+                .padding(.top, 10)
             controls
             Divider()
             if !bottle.shortcuts.isEmpty {
@@ -42,6 +52,19 @@ struct BottleDetailView: View {
         .sheet(isPresented: $showingSaveSheet) {
             saveShortcutSheet
         }
+        .onAppear { refreshReadiness() }
+        .onChange(of: store.selectedWinePath) { _, _ in refreshReadiness() }
+        .onChange(of: backend) { _, _ in refreshReadiness() }
+        .onChange(of: bottle.isInitialised) { _, _ in refreshReadiness() }
+    }
+
+    private func refreshReadiness(for executableURL: URL? = nil) {
+        readinessReport = scanner.scan(
+            bottle: bottle,
+            selectedRuntimePath: store.selectedWinePath,
+            backend: backend,
+            executableURL: executableURL
+        )
     }
 
     // MARK: Header
@@ -118,7 +141,8 @@ struct BottleDetailView: View {
                     pickAndLaunch()
                 } label: { Label("Run .exe…", systemImage: "play.fill") }
                 .buttonStyle(.borderedProminent)
-                .disabled(store.selectedWinePath.isEmpty)
+                .disabled(store.selectedWinePath.isEmpty || !launchState.canLaunch)
+                .help(launchState.canLaunch ? "" : launchState.primaryMessage)
 
                 if runner.isRunning {
                     Button(role: .destructive) { runner.terminate() } label: {
