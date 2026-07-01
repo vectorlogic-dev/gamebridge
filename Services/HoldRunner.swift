@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 import Combine
 import Carbon.HIToolbox
 
@@ -25,6 +26,7 @@ final class HoldRunner: ObservableObject {
     @Published var targetKey: NumberKey = .n1
     @Published private(set) var state: State = .idle
     @Published private(set) var registrationError: String?
+    @Published private(set) var permissionError: String?
 
     /// macOS virtual key code for the start hotkey (default ⌃-).
     var startKeyCode: UInt32 = UInt32(kVK_ANSI_Minus)
@@ -86,6 +88,7 @@ final class HoldRunner: ObservableObject {
     func registerHotkeys() {
         registrationError = nil
         unregisterHotkeys()
+        requestAccessibilityIfNeeded()
 
         startHotkeyID = HotkeyMonitor.shared.register(keyCode: startKeyCode, modifiers: startModifiers) { [weak self] in
             Task { @MainActor in self?.armOnCurrentApp() }
@@ -107,6 +110,19 @@ final class HoldRunner: ObservableObject {
     func unregisterHotkeys() {
         if let id = startHotkeyID { HotkeyMonitor.shared.unregister(id); startHotkeyID = nil }
         if let id = stopHotkeyID  { HotkeyMonitor.shared.unregister(id); stopHotkeyID  = nil }
+    }
+
+    /// `CGEvent.postToPid` silently drops synthetic events when the app isn't
+    /// in TCC's Accessibility trusted list — and macOS never spontaneously
+    /// prompts. Passing `AXTrustedCheckOptionPrompt = true` is the sanctioned
+    /// way to trigger the system prompt the first time we need the permission.
+    private func requestAccessibilityIfNeeded() {
+        // Hardcode the option-key string. `kAXTrustedCheckOptionPrompt` is a
+        // `CFStringRef` global that Swift 6 rejects as non-Sendable, but its
+        // value is the literal "AXTrustedCheckOptionPrompt".
+        let options = ["AXTrustedCheckOptionPrompt": kCFBooleanTrue] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        permissionError = trusted ? nil : "GameBridge needs Accessibility permission to send keys to games. Grant it in System Settings → Privacy & Security → Accessibility, then restart GameBridge."
     }
 
     /// Capture the currently-frontmost app's PID and start holding the target

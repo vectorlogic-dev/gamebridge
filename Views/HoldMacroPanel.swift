@@ -36,6 +36,11 @@ struct HoldMacroPanel: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+            if let error = runner.permissionError {
+                Label(error, systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
         .padding()
         .onAppear { runner.registerHotkeys() }
