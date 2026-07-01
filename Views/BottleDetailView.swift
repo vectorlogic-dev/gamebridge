@@ -52,10 +52,23 @@ struct BottleDetailView: View {
         .sheet(isPresented: $showingSaveSheet) {
             saveShortcutSheet
         }
-        .onAppear { refreshReadiness() }
+        .onAppear {
+            refreshReadiness()
+            if let saved = bottle.holdTargetKey {
+                holdRunner.targetKey = saved
+            }
+        }
         .onChange(of: store.selectedWinePath) { _, _ in refreshReadiness() }
         .onChange(of: backend) { _, _ in refreshReadiness() }
         .onChange(of: bottle.isInitialised) { _, _ in refreshReadiness() }
+        .onChange(of: holdRunner.targetKey) { _, newKey in persistHoldTargetKey(newKey) }
+    }
+
+    private func persistHoldTargetKey(_ newKey: NumberKey) {
+        guard bottle.holdTargetKey != newKey else { return }
+        var updated = bottle
+        updated.holdTargetKey = newKey
+        store.update(updated)
     }
 
     private func refreshReadiness(for executableURL: URL? = nil) {

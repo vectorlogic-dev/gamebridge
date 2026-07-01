@@ -19,6 +19,11 @@ struct Bottle: Identifiable, Codable, Hashable {
     var defaultBackend: GraphicsBackend = .d3dmetal
     var createdAt: Date = Date()
     var shortcuts: [GameShortcut] = []
+    /// Preferred key for the Hold-macro (autobuff) feature. Persisted per
+    /// bottle so switching between games remembers each one's skill slot.
+    /// `nil` means "use `HoldRunner`'s default" — the first bottle the user
+    /// creates hasn't picked one yet.
+    var holdTargetKey: NumberKey?
 
     /// drive_c inside the prefix — where Windows programs live.
     var driveCURL: URL {
