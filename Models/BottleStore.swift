@@ -6,16 +6,32 @@ import Combine
 @MainActor
 final class BottleStore: ObservableObject {
     @Published var bottles: [Bottle] = []
-    @Published var selectedWinePath: String = WineLocator.detect().first?.winePath ?? ""
+    @Published var selectedWinePath: String {
+        didSet { defaults.set(selectedWinePath, forKey: Self.selectedWinePathKey) }
+    }
+
+    private static let selectedWinePathKey = "selectedWinePath"
 
     private let fileURL: URL
+    private let defaults: UserDefaults
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GameBridge", isDirectory: true)
         try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         self.fileURL = appSupport.appendingPathComponent("bottles.json")
+
+        // Prefer a previously-saved runtime path so the picker doesn't reset
+        // to the first-detected runtime (usually GPTK) on every launch. Fall
+        // back to detection if the saved path is missing or no longer exists.
+        let saved = defaults.string(forKey: Self.selectedWinePathKey) ?? ""
+        if !saved.isEmpty, FileManager.default.isExecutableFile(atPath: saved) {
+            self.selectedWinePath = saved
+        } else {
+            self.selectedWinePath = WineLocator.detect().first?.winePath ?? ""
+        }
         load()
     }
 
