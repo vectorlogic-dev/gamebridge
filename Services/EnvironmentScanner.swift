@@ -69,11 +69,13 @@ struct EnvironmentScanner {
 
         if let selectedRuntime {
             if backend == .d3dmetal, selectedRuntime.capabilities.supportsD3DMetal == false {
+                // Warn, not block: we've seen games launch with this combo,
+                // but we can't guarantee it — leave the decision to the user.
                 findings.append(
                     ReadinessFinding(
-                        severity: .blocked,
+                        severity: .warning,
                         code: .unsupportedGraphicsBackend,
-                        message: "The selected Wine runtime does not support D3DMetal."
+                        message: "The selected Wine runtime doesn't officially support D3DMetal. Launch may fail or use a different renderer."
                     )
                 )
             } else if backend == .d3dmetal {
@@ -92,11 +94,12 @@ struct EnvironmentScanner {
             }
 
             if backend == .dxvk, selectedRuntime.capabilities.supportsDXVK == false {
+                // Warn, not block: same reasoning as D3DMetal above.
                 findings.append(
                     ReadinessFinding(
-                        severity: .blocked,
+                        severity: .warning,
                         code: .unsupportedGraphicsBackend,
-                        message: "The selected Wine runtime does not support DXVK."
+                        message: "The selected Wine runtime doesn't officially support DXVK. Launch may fail or use a different renderer."
                     )
                 )
             } else if backend == .dxvk,

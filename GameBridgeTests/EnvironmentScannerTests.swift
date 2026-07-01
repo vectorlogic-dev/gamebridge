@@ -94,7 +94,7 @@ final class EnvironmentScannerTests: XCTestCase {
         XCTAssertTrue(report.findings.contains { $0.code == .missingDXVKSupportFiles })
     }
 
-    func testScanBlocksWhenDXVKBackendIsUnsupportedBySelectedRuntime() {
+    func testScanWarnsWhenDXVKBackendIsUnsupportedBySelectedRuntime() {
         let bottle = Bottle(name: "Ready Bottle", prefixPath: "/tmp/ReadyPrefix")
         let runtime = GameRuntimeInstall(
             name: "Unsupported wine",
@@ -123,7 +123,7 @@ final class EnvironmentScannerTests: XCTestCase {
             executableURL: nil
         )
 
-        XCTAssertEqual(report.status, .blocked)
+        XCTAssertEqual(report.status, .warning)
         XCTAssertTrue(report.findings.contains(where: { $0.code == .unsupportedGraphicsBackend }))
         XCTAssertFalse(report.findings.contains(where: { $0.code == .missingDXVKSupportFiles }))
     }
@@ -202,7 +202,7 @@ final class EnvironmentScannerTests: XCTestCase {
         XCTAssertTrue(report.findings.contains { $0.code == .missingD3DMetalSupportFiles })
     }
 
-    func testScanBlocksWhenD3DMetalBackendIsUnsupportedBySelectedRuntime() {
+    func testScanWarnsWhenD3DMetalBackendIsUnsupportedBySelectedRuntime() {
         let bottle = Bottle(name: "Ready Bottle", prefixPath: "/tmp/ReadyPrefix")
         let runtime = GameRuntimeInstall(
             name: "Homebrew wine",
@@ -231,7 +231,7 @@ final class EnvironmentScannerTests: XCTestCase {
             executableURL: nil
         )
 
-        XCTAssertEqual(report.status, .blocked)
+        XCTAssertEqual(report.status, .warning)
         XCTAssertTrue(report.findings.contains(where: { $0.code == .unsupportedGraphicsBackend }))
         XCTAssertFalse(report.findings.contains(where: { $0.code == .missingD3DMetalSupportFiles }))
     }
