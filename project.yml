@@ -6,16 +6,6 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    # Self-signed local Dev identity ("GameBridge Dev") kept in the developer's
-    # login keychain. Ad-hoc ("-") signing changes the cdhash on every rebuild
-    # and drops TCC grants (Accessibility etc.) — this stable identity keeps
-    # them across rebuilds. See ai/2026-07-01-hold-presser-issue.md for the
-    # incident that motivated this.
-    CODE_SIGN_IDENTITY: "GameBridge Dev"
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGNING_ALLOWED: YES
-    CODE_SIGNING_REQUIRED: YES
-    DEVELOPMENT_TEAM: ""
 targets:
   GameBridge:
     type: application
@@ -32,6 +22,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.argie.gamebridge
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_ENTITLEMENTS: ""
+        # Self-signed local Dev identity ("GameBridge Dev") kept in the
+        # developer's login keychain. Ad-hoc ("-") signing changes the cdhash
+        # on every rebuild and drops TCC grants (Accessibility etc.); this
+        # stable identity keeps them across rebuilds. See
+        # ai/2026-07-01-hold-presser-issue.md for the incident that motivated
+        # this. Run scripts/create-signing-identity.sh once per machine to
+        # provision it in the login keychain.
+        CODE_SIGN_IDENTITY: "GameBridge Dev"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        DEVELOPMENT_TEAM: ""
   GameBridgeTests:
     type: bundle.unit-test
     platform: macOS
@@ -43,3 +45,4 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
