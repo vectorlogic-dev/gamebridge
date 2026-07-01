@@ -21,6 +21,10 @@ struct GameBridgeApp: App {
             // reliable way to leave without touching a half-built AppKit.
             exit(EXIT_SUCCESS)
         }
+
+        // Now that we know we're the only GameBridge process, kill any
+        // helper subprocesses left over from prior crashes / force-quits.
+        WineRunner.reapOrphanHelpers()
     }
 
     var body: some Scene {

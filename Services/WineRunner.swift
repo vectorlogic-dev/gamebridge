@@ -213,6 +213,57 @@ final class WineRunner: ObservableObject {
         helperProcess = nil
     }
 
+    /// Kill any leftover helper subprocesses from a prior GameBridge run that
+    /// didn't clean up (crash, force-quit, debugger stop). The normal path
+    /// (`stopHelperIfRunning`) doesn't fire in those cases and the Python
+    /// child is left running — we saw five orphans accumulate over one
+    /// evening. Safe to call at app startup because the single-instance
+    /// guard has already established we're the only GameBridge process, so
+    /// any matching Python is genuinely stale.
+    ///
+    /// Matches on the *bundled* helper script path so we only kill processes
+    /// that were spawned from this specific `.app` bundle — a different
+    /// GameBridge build living somewhere else on disk is left alone.
+    nonisolated static func reapOrphanHelpers() {
+        guard let helperPath = Bundle.main.url(
+            forResource: "rfbanana_handoff_patcher",
+            withExtension: "py"
+        )?.path else { return }
+
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", helperPath]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        pgrep.standardError = Pipe()
+
+        do {
+            try pgrep.run()
+            pgrep.waitUntilExit()
+        } catch {
+            return
+        }
+
+        guard let data = try? pipe.fileHandleForReading.readToEnd(),
+              let output = String(data: data, encoding: .utf8) else { return }
+
+        let pids = output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { Int32($0) }
+            .filter { $0 > 0 }
+
+        for pid in pids {
+            _ = kill(pid, SIGTERM)
+        }
+
+        if !pids.isEmpty {
+            ErrorLogger.shared.log(
+                "Reaped \(pids.count) orphan helper process\(pids.count == 1 ? "" : "es"): \(pids.map(String.init).joined(separator: ", "))",
+                source: "wine"
+            )
+        }
+    }
+
     private func appendChunk(_ text: String, prefix: String) {
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         for line in lines where !line.isEmpty {
